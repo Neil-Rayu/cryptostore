@@ -43,7 +43,7 @@ sequenceDiagram
   S->>S: check guest request and host authorization
   S->>R: request recovery key over QOM link
   R-->>S: recovery key
-  S->>S: unwrap DEK; require a new password
+  S->>S: unwrap DEK and require a new password
   S-->>D: completion interrupt
 ```
 

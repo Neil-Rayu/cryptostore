@@ -1,4 +1,4 @@
-# Encrypted PCIe Storage Device — Threat Model & Attack Surface
+# Encrypted PCIe Storage Device: Threat Model & Attack Surface
 
 Sep 26, 2026 · @Ved
 
