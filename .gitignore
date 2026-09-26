@@ -1,0 +1,11 @@
+build/
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+.*.cmd
+*.order
+*.symvers
+.tmp_versions/
+tools/pcie_hello_ctl
