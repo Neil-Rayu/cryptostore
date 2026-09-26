@@ -1,7 +1,7 @@
 # Out-of-tree build of the pcie_hello module.
 #   make                 build against the running kernel
 #   make KDIR=/path      build against another kernel tree
-obj-m := pcie_hello.o
+obj-m := pcie_hello.o cryptostore.o cryptorecovery.o
 ccflags-y := -I$(src)/../include
 
 KDIR ?= /lib/modules/$(shell uname -r)/build

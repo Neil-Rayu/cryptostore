@@ -1,0 +1,53 @@
+Attacker's copy: /home/ved-vyas/cryptostore-images/systest/cs0.img (64 MiB). No password, no recovery key.
+
+--- Header: public by design (threat model A5, 11.9) ------------------
+  00000000  43 52 59 50 54 4f 53 54 01 00 00 00 97 3f 12 d0  |CRYPTOST.....?..|
+  00000010  0b 8c 43 36 98 9a 8b 89 80 c5 1c 93 00 00 02 00  |..C6............|
+  00000020  00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00  |................|
+  magic 'CRYPTOST', version 1, uuid 973f12d0-0b8c-4336-989a-8b8980c51c93, capacity 131072 sectors
+
+  keyslot 0 (state, type, KDF, iterations, then salt / IV / wrapped key / tag):
+  00000100  c3 a5 3c 5a 01 00 01 00 5d 41 58 00 00 00 00 00  |..<Z....]AX.....|
+  00000110  38 f7 9d eb 93 21 10 f9 fb a4 6f ea 98 19 98 f6  |8....!....o.....|
+  00000120  c3 65 e4 4a 85 93 5d 25 ef 97 c8 b0 da 0a 83 f9  |.e.J..]%........|
+  00000130  99 fa a4 a3 93 62 05 ff 20 57 9e 78 d6 ab d0 90  |.....b.. W.x....|
+  00000140  7a e7 e5 e7 62 65 6a 0f 5e 4b b8 e7 ea 72 76 fa  |z...bej.^K...rv.|
+  00000150  d3 87 4d c0 cf c1 35 c2 26 d7 41 03 e2 19 e0 13  |..M...5.&.A.....|
+  00000160  74 68 c7 a3 9b d0 fb 50 5d e8 59 4e 4c a9 1e 4f  |th.....P].YNL..O|
+  00000170  61 49 b2 05 e3 74 08 c3 ad be c8 fe e1 aa 7a b5  |aI...t........z.|
+  00000180  6c 63 2a 73 58 a4 e5 ef ca 70 9d 5b 6e 11 21 02  |lc*sX....p.[n.!.|
+  00000190  0b 1d e1 a5 0b 53 a2 f6 f0 15 80 ef bc a0 d1 17  |.....S..........|
+  -> ACTIVE, password slot, PBKDF2-HMAC-SHA256 x 5,783,901
+     The 64-byte data key is only here wrapped (AES-256-CTR) under a key
+     derived from the password, and authenticated by the 32-byte tag.
+
+  failure counter: 0 (complement ok)
+
+--- Data sector 1000 as stored on disk --------------------------------
+  0007e000  ba f6 8f ad db 82 9d d1 6c 3b 56 4f eb eb cc 93  |........l;VO....|
+  0007e010  6e 57 6e 91 35 b2 ae 80 7a 82 14 05 46 c9 64 2c  |nWn.5...z...F.d,|
+  0007e020  f5 02 29 aa 59 d0 8e 68 9d b4 cd b9 f8 de fa 65  |..).Y..h.......e|
+  0007e030  56 42 1b 49 d4 08 8b 33 25 10 c6 0e 48 6c 4c 99  |VB.I...3%...HlL.|
+  0007e040  ae 82 4a 37 21 e4 b0 06 0c 97 2a 86 39 a1 50 d4  |..J7!.....*.9.P.|
+  0007e050  46 b4 82 a8 3d c1 21 d2 b4 83 0e 5b d1 d0 63 72  |F...=.!....[..cr|
+  0007e060  50 cc 62 df 8e eb d9 d3 33 35 70 72 71 2d fa 0d  |P.b.....35prq-..|
+  0007e070  c8 ca af 88 ae 55 6f 81 f7 30 79 2a e0 1f 0d 11  |.....Uo..0y*....|
+  ... (AES-256-XTS ciphertext: indistinguishable from random)
+
+--- Search the whole file for known plaintext 'TOP-SECRET' ------------
+  not found anywhere in 67112960 bytes
+
+--- Data area statistics ----------------------------------------------
+  entropy 8.0000 bits/byte (8 = random), zero sectors 0 of 131072
+  Random fill at FORMAT means even unused sectors look like data (SR-36),
+  so the file does not reveal how much of the disk is in use.
+
+--- Offline brute force (V1: the KDF is the only defence here) --------
+  one guess = PBKDF2 x 5,783,901 = 1.19 s on this CPU core
+  -> 0.8 guesses/s per core, 72,851 per core-day
+  8 random lowercase letters: about 3,927 core-years on average
+  4 random dictionary words (7776-word list): about 68,749,123 core-years on average
+  GPUs run PBKDF2 far faster than one core; that gap is why Argon2id
+  (memory-hard) is the planned upgrade via the KDF ID (V1, O10).
+  The device's 10-try lockout does not apply offline; it stops guessing
+  through the device (online, T3).

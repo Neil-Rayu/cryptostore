@@ -1,0 +1,31 @@
+  PASS  jitter: nop survives inside the delay loop                                    
+  PASS  jitter: the loop is a real loop (backward branch)                             
+  PASS  jitter: volatile counter lives in memory (>= 6 stack accesses)                14 stack accesses
+  PASS  jitter: three redundant checks after the loop (>= 4 conditional branches)     
+  PASS  F2: both fail-secure constants are compared                                   FS_TRUE x8, FS_FALSE x4
+  PASS  F2: jitter precedes the checks (cs_jitter called)                             
+  PASS  F2: path B doubling loop survives (backward branch)                           
+  PASS  F1: the record is read back after the write (blk_pread)                       
+  PASS  F5: path A range check survives (iters - floor <= span)                       
+  PASS  F5: path B compares against volatile in-memory bounds (differs from path A)   
+  PASS  F5: jitter between the two evaluations                                        
+  PASS  F4: UNLOCKED constant checked at entry and before the access (>= 2)           x3
+  PASS  F4: dek_loaded compared against FS_TRUE                                       
+  PASS  F7: encrypt and decrypt both run per sector (>= 4 cs_xts_sector calls)        
+  PASS  F7: outputs compared before release (memcmp)                                  
+  PASS  CFI: step mask and step count compared                                        
+  PASS  F9 pattern on the header MAC: goes through cs_tag_verdict                     
+  PASS  F9 pattern on the header MAC: verdict compared to both FS constants           
+  PASS  F3: explicit_bzero called                                                     
+  PASS  F3: read-back verification loops survive                                      
+  PASS  F9: slot tag goes through cs_tag_verdict                                      
+  PASS  F9: verdict calls both compare implementations                                
+  PASS  F9: verdict built from FS_FALSE plus one mask per compare (no single select)  
+  PASS  F9: unwrap accepts only an exact FS_TRUE / FS_FALSE                           
+  PASS  SR-05: cs_ct_equal has a single loop and no data-dependent early exit         je     2d <cs_ct_equal+0x2d>; jne    10 <cs_ct_equal+0x10>
+  PASS  SR-05: cs_ct_equal_alt has a single loop and no data-dependent early exit     je     85 <cs_ct_equal_alt+0x35>; jne    68 <cs_ct_equal_alt+0x18>
+  PASS  F8: jitter nop inlined in the release path                                    
+  PASS  F8: fail-secure released flag compared                                        
+
+28 passed, 0 failed; disassembly in /home/ved-vyas/neil-rayu/build/fi-review
+Disassembly matches the reviewed baseline in tests/fi/baseline/

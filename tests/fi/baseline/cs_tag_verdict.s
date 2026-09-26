@@ -1,0 +1,33 @@
+  endbr64
+  push   %rbx
+  mov    %rdi,%r10
+  mov    %ecx,%ebx
+  mov    %rsi,%r9
+  mov    %rdx,%r11
+  call X
+  reloc cs_ct_equal
+  or     %ebx,%eax
+  movzbl %al,%r8d
+  mov    %r11,%rdx
+  mov    %r10,%rsi
+  mov    %r9,%rdi
+  call X
+  reloc cs_ct_equal_alt
+  movzbl %al,%edx
+  mov    %r8d,%eax
+  neg    %edx
+  pop    %rbx
+  neg    %eax
+  and    $0xcbef3fcd,%edx
+  and    $0xf6d7fbb3,%eax
+  xor    %edx,%eax
+  xor    $0xb5afe1c7,%eax
+  xor    %edx,%edx
+  xor    %ecx,%ecx
+  xor    %esi,%esi
+  xor    %edi,%edi
+  xor    %r8d,%r8d
+  xor    %r9d,%r9d
+  xor    %r10d,%r10d
+  xor    %r11d,%r11d
+  ret

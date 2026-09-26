@@ -1,0 +1,12 @@
+  jitter (8) / jitter_probe                     28 instructions: 17 correct, 1 denial, 7 detected, 3 not reached
+  tag-wrong (wrong 0) / cs_tag_verdict          17 instructions: 11 correct, 1 denial, 5 detected
+  tag-wrong (wrong 0) / cs_ct_equal             16 instructions: 12 correct, 4 detected
+  tag-wrong (wrong 0) / cs_ct_equal_alt         17 instructions: 12 correct, 5 detected
+  tag-wrong (wrong 16) / cs_tag_verdict         17 instructions: 11 correct, 1 denial, 5 detected
+  tag-wrong (wrong 16) / cs_ct_equal            16 instructions: 11 correct, 5 detected
+  tag-wrong (wrong 16) / cs_ct_equal_alt        17 instructions: 12 correct, 5 detected
+  tag-wrong (wrong 31) / cs_tag_verdict         17 instructions: 12 correct, 1 denial, 4 detected
+  tag-wrong (wrong 31) / cs_ct_equal            16 instructions: 11 correct, 5 detected
+  tag-wrong (wrong 31) / cs_ct_equal_alt        17 instructions: 13 correct, 4 detected
+
+No single-instruction skip produced a silent wrong outcome.

@@ -3,18 +3,25 @@
 #
 # - Clones QEMU at $QEMU_REF into build/qemu-src (once).
 # - Applies qemu/pcie-hello-build-hooks.patch (Kconfig + meson + trace-events).
-# - Symlinks qemu/pcie_hello.c and include/pcie_hello_regs.h into hw/misc/,
+# - Symlinks qemu/*.{c,h} and the shared include/ headers into hw/misc/,
 #   so editing them in this repo and re-running this script is enough.
 # - Configures a debug build with KVM, virtfs (9p), slirp and the "log"
 #   trace backend, then builds with ninja.
 #
-# Env: QEMU_REF (default v11.1.1), RECONFIGURE=1 to re-run configure.
+# Env: QEMU_REF (default v11.1.1), RECONFIGURE=1 to re-run configure,
+#      TEST_BUILD=1 to build the fault-injection test build instead
+#      (build/qemu-src/build-test, -DCRYPTOSTORE_FAULT_HOOKS; SR-29).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 QEMU_REF="${QEMU_REF:-v11.1.1}"
 SRC="$ROOT/build/qemu-src"
 BLD="$SRC/build"
+EXTRA_CFLAGS=""
+if [ "${TEST_BUILD:-0}" = 1 ]; then
+    BLD="$SRC/build-test"
+    EXTRA_CFLAGS="-DCRYPTOSTORE_FAULT_HOOKS"
+fi
 
 need_pkg() {
     if ! pkg-config --exists "$1"; then
@@ -46,8 +53,25 @@ else
     echo "==> Applying build hooks"
     git apply "$PATCH"
 fi
-ln -sfn ../../../../qemu/pcie_hello.c hw/misc/pcie_hello.c
-ln -sfn ../../../../include/pcie_hello_regs.h hw/misc/pcie_hello_regs.h
+# Device sources and the shared hardware headers live in this repo.
+for f in "$ROOT"/qemu/*.c "$ROOT"/qemu/*.h; do
+    ln -sfn "../../../../qemu/$(basename "$f")" "hw/misc/$(basename "$f")"
+done
+for f in pcie_hello_regs.h cryptostore_regs.h cryptostore_format.h; do
+    ln -sfn "../../../../include/$f" "hw/misc/$f"
+done
+# qtest for the cryptostore devices (links the standalone format parser too).
+ln -sfn ../../../../tests/qtest/cryptostore-test.c tests/qtest/cryptostore-test.c
+ln -sfn ../../../../qemu/cryptostore_format.c tests/qtest/cryptostore_format.c
+for f in cryptostore_regs.h cryptostore_format.h; do
+    ln -sfn "../../../../include/$f" "tests/qtest/$f"
+done
+# Unit test for the crypto constructions (SR-34 KATs, SR-05 timing).
+ln -sfn ../../../../tests/unit/test-cryptostore-crypto.c tests/unit/test-cryptostore-crypto.c
+for f in cryptostore_crypto.c cryptostore_crypto.h cryptostore_format.c cryptostore_fi.c cryptostore_fi.h cryptostore_kat.h; do
+    ln -sfn "../../../../qemu/$f" "tests/unit/$f"
+done
+ln -sfn ../../../../include/cryptostore_format.h tests/unit/cryptostore_format.h
 
 if [ ! -f "$BLD/build.ninja" ] || [ "${RECONFIGURE:-0}" = 1 ]; then
     echo "==> Configuring"
@@ -59,12 +83,13 @@ if [ ! -f "$BLD/build.ninja" ] || [ "${RECONFIGURE:-0}" = 1 ]; then
         --enable-virtfs \
         --enable-slirp \
         --enable-trace-backends=log \
+        ${EXTRA_CFLAGS:+--extra-cflags="$EXTRA_CFLAGS"} \
         --disable-docs)
 fi
 
 echo "==> Building"
-ninja -C "$BLD" qemu-system-x86_64 qemu-img
+ninja -C "$BLD" qemu-system-x86_64 qemu-img tests/qtest/cryptostore-test tests/unit/test-cryptostore-crypto
 
 echo "==> Checking the device is registered"
-"$BLD/qemu-system-x86_64" -device help | grep pcie-hello
+"$BLD/qemu-system-x86_64" -device help | grep -E 'pcie-(hello|cryptostore|cryptorecovery)"'
 echo "QEMU ready: $BLD/qemu-system-x86_64"

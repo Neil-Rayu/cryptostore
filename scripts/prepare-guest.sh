@@ -7,7 +7,7 @@
 # - Generates an SSH key for the VM in build/ssh/.
 # - Builds a cloud-init seed (build/vm/seed.img) that creates user dev/dev
 #   (passwordless sudo), installs compiler + kernel headers + pciutils and
-#   mounts this repository at /mnt/host over virtio-9p.
+#   mounts driver/, tools/ and include/ under /mnt/host over virtio-9p.
 # - Boots the VM once headless; cloud-init provisions it and powers it off.
 #
 # Re-running is safe; FORCE=1 throws away the existing VM disk.
@@ -81,7 +81,10 @@ packages:
   - kmod
   - linux-headers-amd64
 mounts:
-  - [hostshare, /mnt/host, 9p, "trans=virtio,version=9p2000.L,msize=524288,nofail,x-systemd.automount", "0", "0"]
+  # Only these three directories are shared into the guest (SR-30).
+  - [hostdriver, /mnt/host/driver, 9p, "trans=virtio,version=9p2000.L,msize=524288,nofail,x-systemd.automount", "0", "0"]
+  - [hosttools, /mnt/host/tools, 9p, "trans=virtio,version=9p2000.L,msize=524288,nofail,x-systemd.automount", "0", "0"]
+  - [hostinclude, /mnt/host/include, 9p, "trans=virtio,version=9p2000.L,msize=524288,nofail,x-systemd.automount", "0", "0"]
 runcmd:
   # Headers for the running kernel (the meta package tracks the newest one)
   - apt-get install -y "linux-headers-\$(uname -r)"
@@ -94,7 +97,7 @@ cloud-localds "$VM_DIR/seed.img" "$VM_DIR/user-data" "$VM_DIR/meta-data"
 
 echo "==> First boot: cloud-init provisions the guest and powers off (a few minutes)"
 echo "    serial console log: $VM_DIR/serial.log"
-NUM_DEVICES=0 HEADLESS=1 TRACE= "$ROOT/scripts/run-vm.sh"
+NUM_DEVICES=0 NUM_CRYPTOSTORE=0 HEADLESS=1 TRACE= "$ROOT/scripts/run-vm.sh"
 
 if grep -q "Cloud-init v.* finished" "$VM_DIR/serial.log"; then
     echo "Guest ready. Start it with scripts/run-vm.sh (login dev/dev)."

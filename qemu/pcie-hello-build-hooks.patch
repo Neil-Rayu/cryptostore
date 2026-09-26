@@ -1,8 +1,8 @@
 diff --git a/hw/misc/Kconfig b/hw/misc/Kconfig
-index 1543ee6..76fe098 100644
+index 1543ee6..435ea62 100644
 --- a/hw/misc/Kconfig
 +++ b/hw/misc/Kconfig
-@@ -35,6 +35,11 @@ config EDU
+@@ -35,6 +35,16 @@ config EDU
      default y if TEST_DEVICES
      depends on PCI && MSI_NONBROKEN
  
@@ -11,25 +11,33 @@ index 1543ee6..76fe098 100644
 +    default y if PCI_DEVICES || PCIE_DEVICES
 +    depends on PCI_EXPRESS && MSI_NONBROKEN
 +
++config PCIE_CRYPTOSTORE
++    bool
++    default y if PCI_DEVICES || PCIE_DEVICES
++    depends on PCI_EXPRESS && MSI_NONBROKEN
++
  config I2C_ECHO
      bool
      default y if TEST_DEVICES
 diff --git a/hw/misc/meson.build b/hw/misc/meson.build
-index 23265f6..f5f9423 100644
+index 23265f6..d552021 100644
 --- a/hw/misc/meson.build
 +++ b/hw/misc/meson.build
-@@ -1,5 +1,6 @@
+@@ -1,5 +1,9 @@
  system_ss.add(when: 'CONFIG_APPLESMC', if_true: files('applesmc.c'))
  system_ss.add(when: 'CONFIG_EDU', if_true: files('edu.c'))
 +system_ss.add(when: 'CONFIG_PCIE_HELLO', if_true: files('pcie_hello.c'))
++system_ss.add(when: 'CONFIG_PCIE_CRYPTOSTORE', if_true: files(
++  'cryptostore.c', 'cryptostore_crypto.c', 'cryptostore_format.c', 'cryptostore_fi.c',
++  'cryptorecovery.c'))
  system_ss.add(when: 'CONFIG_FW_CFG_DMA', if_true: files('vmcoreinfo.c'))
  system_ss.add(when: 'CONFIG_ISA_DEBUG', if_true: files('debugexit.c'))
  system_ss.add(when: 'CONFIG_ISA_TESTDEV', if_true: files('pc-testdev.c'))
 diff --git a/hw/misc/trace-events b/hw/misc/trace-events
-index c9a868b..5980e20 100644
+index c9a868b..92f0c0f 100644
 --- a/hw/misc/trace-events
 +++ b/hw/misc/trace-events
-@@ -442,3 +442,13 @@ iommu_testdev_dma_read(uint64_t gva, uint32_t len) "gva=0x%" PRIx64 " len=%u"
+@@ -442,3 +442,31 @@ iommu_testdev_dma_read(uint64_t gva, uint32_t len) "gva=0x%" PRIx64 " len=%u"
  iommu_testdev_dma_verify(uint32_t expected, uint32_t actual) "expected=0x%x actual=0x%x"
  iommu_testdev_dma_result(uint32_t result) "DMA completed result=0x%x"
  iommu_testdev_dma_armed(bool armed) "armed=%d"
@@ -43,3 +51,53 @@ index c9a868b..5980e20 100644
 +pcie_hello_cmd_done(const char *dev, uint32_t cmd, bool ok, uint32_t buf_len) "%s: command 0x%x done ok=%d buf_len=%u"
 +pcie_hello_irq(const char *dev, const char *how, uint32_t int_status, uint32_t int_enable) "%s: irq %s int_status 0x%x int_enable 0x%x"
 +pcie_hello_reset(const char *dev, const char *kind) "%s: %s, all device state cleared"
++
++# cryptostore.c
++cryptostore_mmio_read(const char *dev, uint64_t addr, const char *reg, uint64_t val) "%s: read  0x%03" PRIx64 " %s -> 0x%" PRIx64
++cryptostore_mmio_write(const char *dev, uint64_t addr, const char *reg, uint64_t val) "%s: write 0x%03" PRIx64 " %s <- 0x%" PRIx64
++cryptostore_window(const char *dev, const char *win, bool write, uint64_t off, unsigned size) "%s: %s window write=%d offset 0x%" PRIx64 " size %u (value not traced)"
++cryptostore_cmd_start(const char *dev, uint32_t cmd, const char *state) "%s: command 0x%x started in %s"
++cryptostore_cmd_done(const char *dev, uint32_t cmd, uint32_t result, const char *state) "%s: command 0x%x done result 0x%x state %s"
++cryptostore_state(const char *dev, const char *from, const char *to) "%s: state %s -> %s"
++cryptostore_irq(const char *dev, const char *how, uint32_t int_status, uint32_t int_enable) "%s: irq %s int_status 0x%x int_enable 0x%x"
++cryptostore_reset(const char *dev, const char *kind) "%s: %s: in-flight work cancelled, keys zeroized"
++cryptostore_kdf_dispatch(const char *dev, int kind) "%s: KDF job %d dispatched to the worker"
++cryptostore_io(const char *dev, const char *op, uint64_t lba, uint32_t count) "%s: %s lba %" PRIu64 " count %u"
++cryptostore_fault(const char *dev) "%s: fault response"
++cryptostore_fault_hook(const char *dev, const char *target) "%s: test hook fired: %s"
++
++# cryptorecovery.c
++cryptorecovery_mmio(const char *dev, bool write, uint64_t addr, uint64_t val) "%s: write=%d 0x%03" PRIx64 " 0x%" PRIx64
++cryptorecovery_event(const char *dev, const char *what) "%s: %s"
+diff --git a/tests/qtest/meson.build b/tests/qtest/meson.build
+index 56ff860..848bad5 100644
+--- a/tests/qtest/meson.build
++++ b/tests/qtest/meson.build
+@@ -74,6 +74,7 @@ qtests_i386 = \
+   (config_all_devices.has_key('CONFIG_WDT_IB700') ? ['wdt_ib700-test'] : []) +              \
+   (config_all_devices.has_key('CONFIG_PVPANIC_ISA') ? ['pvpanic-test'] : []) +              \
+   (config_all_devices.has_key('CONFIG_PVPANIC_PCI') ? ['pvpanic-pci-test'] : []) +          \
++  (config_all_devices.has_key('CONFIG_PCIE_CRYPTOSTORE') ? ['cryptostore-test'] : []) +   \
+   (config_all_devices.has_key('CONFIG_HDA') ? ['intel-hda-test'] : []) +                    \
+   (config_all_devices.has_key('CONFIG_I82801B11') ? ['i82801b11-test'] : []) +             \
+   (config_all_devices.has_key('CONFIG_IOH3420') ? ['ioh3420-test'] : []) +                  \
+@@ -400,6 +401,7 @@ qtests = {
+                        [gio],
+   'erst-test': files('erst-test.c'),
+   'ivshmem-test': [rt, '../../contrib/ivshmem-server/ivshmem-server.c'],
++  'cryptostore-test': [files('cryptostore_format.c')],
+   'migration-test': test_migration_files + migration_tls_files + migration_colo_files,
+   'pxe-test': files('boot-sector.c'),
+   'pnv-xive2-test': files('pnv-xive2-common.c', 'pnv-xive2-flush-sync.c',
+diff --git a/tests/unit/meson.build b/tests/unit/meson.build
+index dc3fb95..0b0877c 100644
+--- a/tests/unit/meson.build
++++ b/tests/unit/meson.build
+@@ -123,6 +123,7 @@ if have_block
+     tests += {'test-replication': [testblock]}
+   endif
+   tests += {'test-crypto-pbkdf': [io]}
++  tests += {'test-cryptostore-crypto': [io, files('cryptostore_crypto.c', 'cryptostore_format.c', 'cryptostore_fi.c')]}
+ endif
+ 
+ if have_system
