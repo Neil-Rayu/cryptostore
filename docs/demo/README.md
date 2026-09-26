@@ -1,12 +1,11 @@
-# pcie-cryptostore demo kit
+# CryptoStore evidence
 
-Everything needed to show the encrypted PCIe storage device working.
+This directory collects review notes and captured outputs for CryptoStore. The files below explain the driver path, fault-injection defenses, and test artifacts.
 
 | File | What it is |
 | --- | --- |
-| [demo-flow.md](demo-flow.md) | Step-by-step live demo: commands, what to say, what to point at |
-| [driver-flow.md](driver-flow.md) | How the PCIe driver flow works, in plain words, and what to print to prove each step |
-| [fi-evidence.md](fi-evidence.md) | Fault-injection hardening: annotated disassembly, the bug the skip campaign found, test results |
+| [driver-flow.md](driver-flow.md) | How guest I/O moves through the driver and QEMU device |
+| [fi-evidence.md](fi-evidence.md) | Fault-injection design, the issue found by instruction skipping, and supporting results |
 | [evidence/](evidence/) | Raw outputs captured from real runs (see below) |
 
 ## Evidence files
@@ -31,5 +30,4 @@ Everything needed to show the encrypted PCIe storage device working.
 | Instruction-skip campaign | 0 silent outcomes |
 | Header parser fuzzing | 7M+ inputs, no failure |
 
-The full qtest and system suites were last run before the final tag-verdict change; the unit tests,
-review, campaign and the sampled qtests in `evidence/` were run after it.
+The full qtest and guest system suites were last run before the final tag-verdict change. The crypto unit tests, disassembly review, skip campaign, and sampled qtests in `evidence/` were run after that change. This distinction matters when interpreting the totals above.

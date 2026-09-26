@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a Debian 13 (trixie) cloud guest for pcie-hello development.
+# Prepare a Debian 13 (trixie) cloud guest for CryptoStore development.
 #
 # - Downloads the "generic" qcow2 (standard kernel with 9p; the genericcloud
 #   kernel lacks it), verified against Debian's SHA512SUMS, into
@@ -45,7 +45,7 @@ if [ ! -f "$BASE" ]; then
 fi
 
 if [ ! -f "$SSH_DIR/id_ed25519" ]; then
-    ssh-keygen -q -t ed25519 -N "" -C "pcie-hello-vm" -f "$SSH_DIR/id_ed25519"
+    ssh-keygen -q -t ed25519 -N "" -C "cryptostore-vm" -f "$SSH_DIR/id_ed25519"
 fi
 
 if [ -f "$DISK" ] && [ "${FORCE:-0}" != 1 ]; then
@@ -59,8 +59,8 @@ rm -f "$DISK"
 
 echo "==> Building cloud-init seed"
 cat > "$VM_DIR/meta-data" <<EOF
-instance-id: pcie-hello-$(date +%s)
-local-hostname: pcie-hello-vm
+instance-id: cryptostore-$(date +%s)
+local-hostname: cryptostore-vm
 EOF
 cat > "$VM_DIR/user-data" <<EOF
 #cloud-config
@@ -90,14 +90,14 @@ runcmd:
   - apt-get install -y "linux-headers-\$(uname -r)"
 power_state:
   mode: poweroff
-  message: "pcie-hello guest provisioned"
+  message: "CryptoStore guest provisioned"
   condition: true
 EOF
 cloud-localds "$VM_DIR/seed.img" "$VM_DIR/user-data" "$VM_DIR/meta-data"
 
 echo "==> First boot: cloud-init provisions the guest and powers off (a few minutes)"
 echo "    serial console log: $VM_DIR/serial.log"
-NUM_DEVICES=0 NUM_CRYPTOSTORE=0 HEADLESS=1 TRACE= "$ROOT/scripts/run-vm.sh"
+NUM_CRYPTOSTORE=0 HEADLESS=1 TRACE= "$ROOT/scripts/run-vm.sh"
 
 if grep -q "Cloud-init v.* finished" "$VM_DIR/serial.log"; then
     echo "Guest ready. Start it with scripts/run-vm.sh (login dev/dev)."

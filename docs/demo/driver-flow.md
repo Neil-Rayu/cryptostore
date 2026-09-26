@@ -1,52 +1,50 @@
-# How the PCIe driver flow works
+# How guest I/O reaches CryptoStore
 
-**One line:** the card is emulated in C inside QEMU, but the guest talks to it exactly as it would to real hardware: by reading and writing memory-mapped registers and getting interrupts back.
+CryptoStore is a QEMU PCIe device, so Linux discovers and drives it through the same PCI mechanisms used for a hardware endpoint. The guest writes registers and data windows in BAR0; QEMU handles those accesses and completes commands with an interrupt.
 
+```mermaid
+flowchart LR
+  subgraph Guest
+    CLI[cryptoctl] -->|ioctl| CTL[Control driver]
+    APP[Filesystem or application] -->|block request| BLK[Block driver]
+  end
+  BLK -->|BAR0 MMIO| KVM[KVM exit]
+  CTL -->|BAR0 MMIO| KVM
+  KVM --> DEV[QEMU CryptoStore device]
+  DEV -->|validate command and state| LOGIC[Device logic]
+  LOGIC -->|PBKDF2 / AES-XTS| CRYPTO[Crypto operations]
+  CRYPTO <-->|encrypted sectors| IMG[(Backing image)]
+  DEV -->|MSI-X, MSI, or INTx| BLK
+  DEV -->|MSI-X, MSI, or INTx| CTL
 ```
- guest userspace        guest kernel                 host
- ───────────────        ────────────                 ────
- cryptoctl  ──ioctl──▶  cryptostore.ko  ──MMIO──▶  [KVM traps the access]  ──▶  QEMU pcie-cryptostore (C)
-                              ▲                                                    │  PBKDF2 / AES-XTS
-                              │                                                    │  reads/writes cs0.img
-                              └────── MSI-X interrupt ◀── "command done" ◀─────────┘
-```
 
-## The five steps
+## The request path
 
-1. **Enumeration.** At boot, firmware and Linux scan the PCIe bus and find a device with ID `1af4:10f1` behind a root port. They give it a memory window (BAR0, 8 KiB of registers) and an interrupt (MSI-X).
-   *Print:* `lspci -tv`, `sudo lspci -vvv -d 1af4:10f1`
-
-2. **Binding.** `insmod cryptostore.ko` makes the kernel match that ID to the driver and call its `probe()`. The driver maps BAR0, checks the magic register (`CRST`), enables bus mastering and MSI-X, and creates `/dev/cryptostore0` (the disk) and `/dev/cryptostore-ctl0` (control).
-   *Print:* `dmesg`, `ls -l /dev/cryptostore*`
-
-3. **A command (for example UNLOCK).** `cryptoctl` passes the password in an ioctl. The driver copies it into the device's write-only password window and writes the opcode to the CMD register. Each of those MMIO writes makes the CPU exit to KVM, which hands it to QEMU's C callback. The device counts the attempt on disk, runs PBKDF2 in a worker thread, unwraps the data key, then raises an MSI-X interrupt. The driver's interrupt handler wakes the waiting ioctl, which reads the RESULT register.
-   *Print:* `cc status`; terminal 2's trace (`cmd_start`, `window ... (value not traced)`, `cmd_done`, `irq msix`)
-
-4. **Disk I/O.** A file read becomes a block request of up to 8 sectors. The driver writes LBA and COUNT and issues READ. The device reads ciphertext from `cs0.img`, decrypts it with AES-256-XTS (the tweak is the sector number), checks it by re-encrypting, and puts plaintext in its data window. The driver copies it out and wipes its bounce buffer.
-   *Print:* `grep cryptostore /proc/interrupts` climbing; `lsblk`; the file's contents
-
-5. **Lock, reset, unplug.** The device wipes the key and verifies the wipe. The driver sets the disk size to 0, so nothing more can be read.
-   *Print:* `lsblk` shows 0B; `dmesg` shows the reset
+1. **Enumeration.** Firmware and Linux find device ID `1af4:10f1` behind a PCIe root port. The PCI core assigns BAR0, the device's 8 KiB register and data window, and configures an interrupt (normally MSI-X).
+2. **Driver binding.** `insmod cryptostore.ko` matches the PCI ID and calls `probe()`. The driver maps BAR0, checks the `CRST` magic value, enables bus mastering and MSI-X, and creates `/dev/cryptostore0` and `/dev/cryptostore-ctl0`.
+3. **Commands.** For UNLOCK, `cryptoctl` passes the password through an ioctl. The driver writes it to the write-only password window, sets the command parameters, and rings the CMD doorbell. KVM routes the MMIO access to QEMU's device callback. The device persists the attempt before checking the password, runs PBKDF2 in a worker thread, and unwraps the DEK on success. It raises an interrupt when complete; the driver wakes the ioctl and reads the result. Password values are omitted from traces.
+4. **Disk I/O.** A file read becomes a block request of up to eight sectors. The driver writes the LBA and count, then issues READ. QEMU reads ciphertext from the backing image, decrypts with AES-256-XTS using the sector number as the tweak, and verifies the output by re-encrypting it. Plaintext goes into the device data window for the driver to copy to the request; the driver then wipes its bounce buffer.
+5. **Lock and reset.** Lock and FLR clear the in-memory key, with the wipe checked by the device. The driver sets capacity to zero, so the guest cannot read sectors while locked.
 
 ## Where things live
 
 | Piece | File |
 | --- | --- |
-| Device model (the "hardware") | `qemu/cryptostore.c`, `qemu/cryptostore_crypto.c`, `qemu/cryptorecovery.c` |
-| Register map (the datasheet as code) | `include/cryptostore_regs.h` |
+| Device model and crypto | `qemu/cryptostore.c`, `qemu/cryptostore_crypto.c`, `qemu/cryptorecovery.c` |
+| Register map | `include/cryptostore_regs.h` |
 | On-disk format | `include/cryptostore_format.h`, `qemu/cryptostore_format.c` |
 | Guest drivers | `driver/cryptostore.c`, `driver/cryptorecovery.c` |
 | CLI and ioctl ABI | `tools/cryptoctl.c`, `include/cryptostore_ioctl.h` |
-| Specs | `docs/cryptostore-datasheet.md`, `docs/threat-model.md` |
+| Specifications | `docs/cryptostore-datasheet.md`, `docs/threat-model.md` |
 
-## Proof points to print
+## Useful review commands
 
 | Claim | Command |
 | --- | --- |
-| It's a real PCIe endpoint | `sudo lspci -vvv -d 1af4:10f1` (Express Endpoint, FLReset+, MSI-X Enable+) |
-| The driver bound | `dmesg \| grep cryptostore` |
-| Interrupts drive completion | `grep cryptostore /proc/interrupts` before and after I/O |
-| The device logic runs | `tail -f build/vm/qemu.log` |
+| PCIe endpoint and capabilities | `sudo lspci -vvv -d 1af4:10f1` |
+| Driver binding | `dmesg \\| grep cryptostore` |
+| Interrupts complete commands | `grep cryptostore /proc/interrupts` before and after I/O |
+| QEMU device activity | `tail -f build/vm/qemu.log` |
 | Data is encrypted at rest | `tools/attacker-view.py IMAGE --secret TEXT` |
-| Passwords never hit logs | grep the trace log for the password: nothing |
-| Locked means locked | `lsblk` 0B, `dd` returns 0 bytes |
+| Passwords are absent from traces | Search the QEMU trace log for the entered password |
+| Locked device exposes no capacity | `lsblk` should show 0B; a read should return no data |

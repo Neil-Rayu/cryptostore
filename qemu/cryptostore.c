@@ -330,7 +330,7 @@ static void cs_cfi(CryptoStoreState *s, uint32_t step)
 }
 
 /* ---------------------------------------------------------------------- */
-/* Interrupts (same model as pcie-hello)                                  */
+/* Interrupt delivery                                                     */
 /* ---------------------------------------------------------------------- */
 
 static void cs_update_irq(CryptoStoreState *s, uint32_t newly_set)

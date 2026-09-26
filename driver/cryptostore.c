@@ -140,7 +140,7 @@ static int cs_exec(struct cs_dev *cd, u32 cmd, unsigned int timeout_ms,
 	if (status & CS_STATUS_BUSY)
 		return -EBUSY;
 
-	/* Discard stale completions before issuing (see pcie_hello). */
+	/* Discard stale completions before issuing the next command. */
 	spin_lock_irq(&cd->irq_lock);
 	cs_wr(cd, CS_REG_INT_ACK, CS_INT_ALL);
 	cd->irq_status = 0;

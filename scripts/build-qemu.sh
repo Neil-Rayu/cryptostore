@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build QEMU (x86_64 system emulator) with the pcie-hello device.
+# Build QEMU (x86_64 system emulator) with the CryptoStore devices.
 #
 # - Clones QEMU at $QEMU_REF into build/qemu-src (once).
-# - Applies qemu/pcie-hello-build-hooks.patch (Kconfig + meson + trace-events).
+# - Applies qemu/cryptostore-build-hooks.patch (Kconfig + meson + trace-events + tests).
 # - Symlinks qemu/*.{c,h} and the shared include/ headers into hw/misc/,
 #   so editing them in this repo and re-running this script is enough.
 # - Configures a debug build with KVM, virtfs (9p), slirp and the "log"
@@ -46,7 +46,8 @@ if [ ! -d "$SRC/.git" ]; then
 fi
 
 cd "$SRC"
-PATCH="$ROOT/qemu/pcie-hello-build-hooks.patch"
+PATCH="$ROOT/qemu/cryptostore-build-hooks.patch"
+python3 "$ROOT/scripts/clean-qemu-hooks.py" "$SRC"
 if git apply --reverse --check "$PATCH" 2>/dev/null; then
     echo "==> Build hooks already applied"
 else
@@ -57,7 +58,7 @@ fi
 for f in "$ROOT"/qemu/*.c "$ROOT"/qemu/*.h; do
     ln -sfn "../../../../qemu/$(basename "$f")" "hw/misc/$(basename "$f")"
 done
-for f in pcie_hello_regs.h cryptostore_regs.h cryptostore_format.h; do
+for f in cryptostore_regs.h cryptostore_format.h; do
     ln -sfn "../../../../include/$f" "hw/misc/$f"
 done
 # qtest for the cryptostore devices (links the standalone format parser too).
@@ -91,5 +92,5 @@ echo "==> Building"
 ninja -C "$BLD" qemu-system-x86_64 qemu-img tests/qtest/cryptostore-test tests/unit/test-cryptostore-crypto
 
 echo "==> Checking the device is registered"
-"$BLD/qemu-system-x86_64" -device help | grep -E 'pcie-(hello|cryptostore|cryptorecovery)"'
+"$BLD/qemu-system-x86_64" -device help | grep -E 'pcie-(cryptostore|cryptorecovery)"'
 echo "QEMU ready: $BLD/qemu-system-x86_64"

@@ -1,21 +1,22 @@
-# Fault-injection hardening: evidence
+# Fault-injection defenses and evidence
 
-Threat model Section 10 treats the device as if it were real silicon facing a glitch attacker
-(T8): someone who can make the chip skip an instruction or corrupt a value at a chosen moment.
-In QEMU this *models* the defence (anyone with host access can read QEMU's memory, O1), but every
-countermeasure is implemented and tested three ways:
+Threat model Section 10 asks how the design would respond to a glitch attacker (T8): someone who
+can make a controller skip an instruction or corrupt a value at a chosen moment. QEMU lets us
+exercise that logic, but does not make the emulated device physically fault-resistant. A host
+administrator can inspect QEMU memory (O1). The evidence answers a narrower question: do the
+defenses detect simulated faults, and do they remain present in the optimized build?
 
 1. **Fault hooks** (test builds only): force each check to go wrong and confirm the device notices.
 2. **Disassembly review:** confirm the optimizer did not delete the redundant checks.
 3. **Instruction-skip campaign:** run the decisions under gdb, skip each instruction once, and
    confirm that no single skip produces a silently wrong answer.
 
-## The design rule: keys protect, branches only back them up
+## What the defenses protect
 
-Skipping the password check does not help an attacker: a wrong password derives a wrong key,
-which unwraps garbage. So hardening is focused on the few checks where a single glitch would
-win something: the failure counter (F1), backoff (F2), key wipe (F3), lock state (F4),
-KDF strength (F5), bounds (F6), AES output (F7), recovery release-once (F8), tag compare (F9).
+Skipping only the password comparison should still leave a wrong password with the wrong
+derived key, which cannot unwrap the DEK. The defenses focus on consequential paths: attempt
+counting and backoff, key wiping, lock enforcement, KDF and sector bounds, AES output, one-time
+recovery release, and authentication-tag comparison.
 
 | Countermeasure | Where |
 | --- | --- |
@@ -27,7 +28,7 @@ KDF strength (F5), bounds (F6), AES output (F7), recovery release-once (F8), tag
 | AES computed twice (encrypt, then decrypt and compare) | `cs_cmd_data()` |
 | Any detection: zeroize, LOCKED_OUT, count a failure, reveal nothing | `cs_fault()` |
 
-## 1. Your `secure_jitter`, ported to C, survives `-O2`
+## 1. The jitter checks survive optimization
 
 `evidence/disasm-cs_jitter.isra.0.s` (x86-64, release flags, `-O2`):
 
@@ -48,17 +49,19 @@ c08:  mov  0x10(%rsp),%eax        ; check 3: re-read counter, must still be 0
 c0e:  sete %cl                    ; result: 1 only if all three checks passed
 ```
 
-This has the same structure as the ARM Thumb listing in `docs/reference/secure_jitter.md`: every
-volatile access stays a real memory access, and all three checks are present. The delay length
-comes from `qcrypto_random_bytes` on every call.
+The listing has the same structure as the ARM Thumb version in
+[`secure_jitter.md`](../reference/secure_jitter.md): volatile accesses remain memory accesses,
+and all three checks are present after the loop. Each delay length is seeded with fresh bytes
+from `qcrypto_random_bytes`.
 
 ## 2. The skip campaign found a real bug, and the fix closed it
 
-The F9 tag decision compares the computed tag with the stored one twice, using two different
-constant-time routines, and returns a fail-secure constant.
+The F9 decision compares the computed tag with the stored tag twice, using two different
+constant-time routines. It returns a fail-secure value unless both comparisons agree.
 
-**First version:** the compiler produced branchless code that *selected* between FS_TRUE and
-FS_FALSE with one `sbb` instruction. The campaign reported:
+**The first version had a flaw.** The compiler generated branchless code that selected between
+`FS_TRUE` and `FS_FALSE` using one `sbb` instruction. The campaign found that skipping that
+instruction (or its preceding comparison) could accept a bad tag:
 
 ```
 SILENT wrong outcomes (a single skipped instruction defeated the check):
@@ -66,12 +69,11 @@ SILENT wrong outcomes (a single skipped instruction defeated the check):
   tag-wrong wrong 0: cs_tag_verdict +0x29  sbb    %eax,%eax
 ```
 
-Skipping either instruction left a zero register, and the arithmetic that follows turned 0 into
-exactly FS_TRUE: **a wrong password accepted by one glitch.** (The keys would still have
-protected the data, since a wrong key unwraps garbage and the header MAC then fails, but the
-check itself was broken.)
+Skipping either instruction left a zero register; later arithmetic converted it to `FS_TRUE`.
+That meant one simulated glitch could accept a wrong password at this check. The image's header
+MAC still provided a later barrier, but the tag decision itself was not safe and needed a fix.
 
-**Fix:** each compare contributes its own mask; FS_TRUE needs both.
+**The fix:** each comparison contributes its own mask, and `FS_TRUE` requires both:
 `r = FS_FALSE ^ (K1 & -match1) ^ (K2 & -match2)`, with `K1 ^ K2 = FS_FALSE ^ FS_TRUE`.
 
 `evidence/disasm-cs_tag_verdict.s`:
@@ -85,7 +87,8 @@ and  $0xf6d7fbb3,%eax             ; K1 if compare 1 matched
 xor  $0xb5afe1c7,%eax             ; start from FS_FALSE
 ```
 
-One compare alone gives a value 23–24 bits away from FS_TRUE, which callers treat as a fault.
+With only one match, the result remains 23–24 bits away from `FS_TRUE`; callers treat that value
+as a fault.
 Re-running the campaign (`evidence/fi-skip-campaign.txt`):
 
 ```
@@ -96,8 +99,8 @@ tag-wrong (wrong 0) / cs_ct_equal     16 instructions: 12 correct, 4 detected
 No single-instruction skip produced a silent wrong outcome.
 ```
 
-"Denial" means a crash or hang: an availability failure, never a wrong answer. For the jitter,
-"correct" requires that all 8 delay iterations really ran (counted by a gdb breakpoint on the `nop`).
+"Denial" means a crash or hang: an availability failure, not an incorrect success. For jitter,
+"correct" means all eight delay iterations ran, counted with a GDB breakpoint on the `nop`.
 
 ## 3. The review also caught the optimizer merging "different" checks
 

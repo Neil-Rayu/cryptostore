@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Send one HMP command to the running VM's monitor and print the reply.
 #   scripts/monitor.sh "info pci"
-#   scripts/monitor.sh "qom-set /machine/peripheral/hello1 latency-ms 3000"
+#   scripts/monitor.sh "info pci"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 exec python3 - "$ROOT/build/vm/monitor.sock" "$*" <<'EOF'
 import socket, sys

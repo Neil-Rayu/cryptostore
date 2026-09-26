@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Launch the dev VM (q35 + KVM) with pcie-hello and pcie-cryptostore devices,
-# each behind its own PCIe root port.
+# Launch the CryptoStore development VM (q35 + KVM).
 #
 # Default topology:
-#   rp1 -- hello0 (pcie-hello, serial=1)        rp2 -- hello1 (serial=2)
-#   rp3 -- rec0 (pcie-cryptorecovery, ~/cryptostore-images/rec0.img)
-#   rp4 -- cs0 (pcie-cryptostore, ~/cryptostore-images/cs0.img, recovery=rec0)
-#   one more empty root port for hotplug experiments
+#   rp1 -- rec0 (pcie-cryptorecovery, ~/cryptostore-images/rec0.img)
+#   rp2 -- cs0 (pcie-cryptostore, ~/cryptostore-images/cs0.img, recovery=rec0)
+#   one spare root port for hotplug experiments
 #
 # Only driver/, tools/ and include/ are shared into the guest (virtio-9p,
 # mounted under /mnt/host), never the images or the QEMU tree (SR-30).
@@ -14,14 +12,12 @@
 # HMP monitor: scripts/monitor.sh "info pci"
 #
 # Env:
-#   NUM_DEVICES      pcie-hello devices (default 2)
-#   HELLO_OPTS       extra -device options for every pcie-hello
 #   NUM_CRYPTOSTORE  pcie-cryptostore devices (default 1)
 #   RECOVERY         1 (default) attaches pcie-cryptorecovery linked to cs0
 #   CS_IMAGES        image directory (default ~/cryptostore-images)
 #   CS_SIZE_MIB      size of newly created images (default 64)
 #   QEMU_BUILD       build (default) or build-test (fault-injection hooks)
-#   TRACE            trace pattern (default "pcie_hello_*;cryptostore_*;cryptorecovery_*")
+#   TRACE            trace pattern (default "cryptostore_*;cryptorecovery_*")
 #   SSH_PORT, MEM, SMP, HEADLESS=1
 # Extra arguments are passed to QEMU unchanged.
 set -euo pipefail
@@ -29,12 +25,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VM_DIR="$ROOT/build/vm"
 QEMU="$ROOT/build/qemu-src/${QEMU_BUILD:-build}/qemu-system-x86_64"
-NUM_DEVICES="${NUM_DEVICES:-2}"
 NUM_CRYPTOSTORE="${NUM_CRYPTOSTORE:-1}"
 RECOVERY="${RECOVERY:-1}"
 CS_IMAGES="${CS_IMAGES:-$HOME/cryptostore-images}"
 CS_SIZE_MIB="${CS_SIZE_MIB:-64}"
-TRACE="${TRACE-pcie_hello_*;cryptostore_*;cryptorecovery_*}"
+TRACE="${TRACE-cryptostore_*;cryptorecovery_*}"
 SSH_PORT="${SSH_PORT:-2222}"
 
 [ -x "$QEMU" ] || { echo "error: $QEMU missing; run scripts/build-qemu.sh" >&2; exit 1; }
@@ -67,11 +62,6 @@ root_port() {
     port=$((port + 1))
     args+=(-device pcie-root-port,id=rp$port,bus=pcie.0,chassis=$port,slot=$port)
 }
-
-for i in $(seq 1 "$NUM_DEVICES"); do
-    root_port
-    args+=(-device "pcie-hello,bus=rp$port,id=hello$((i - 1)),serial=$i${HELLO_OPTS:+,$HELLO_OPTS}")
-done
 
 if [ "$RECOVERY" = 1 ] && [ "$NUM_CRYPTOSTORE" -gt 0 ]; then
     rec="$CS_IMAGES/rec0.img"

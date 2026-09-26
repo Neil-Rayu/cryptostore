@@ -1,7 +1,7 @@
-# Out-of-tree build of the pcie_hello module.
+# Out-of-tree build of the CryptoStore guest drivers.
 #   make                 build against the running kernel
 #   make KDIR=/path      build against another kernel tree
-obj-m := pcie_hello.o cryptostore.o cryptorecovery.o
+obj-m := cryptostore.o cryptorecovery.o
 ccflags-y := -I$(src)/../include
 
 KDIR ?= /lib/modules/$(shell uname -r)/build

@@ -8,5 +8,4 @@ build/
 *.order
 *.symvers
 .tmp_versions/
-tools/pcie_hello_ctl
 tools/cryptoctl

@@ -2,15 +2,10 @@ diff --git a/hw/misc/Kconfig b/hw/misc/Kconfig
 index 1543ee6..435ea62 100644
 --- a/hw/misc/Kconfig
 +++ b/hw/misc/Kconfig
-@@ -35,6 +35,16 @@ config EDU
+@@ -35,6 +35,11 @@ config EDU
      default y if TEST_DEVICES
      depends on PCI && MSI_NONBROKEN
  
-+config PCIE_HELLO
-+    bool
-+    default y if PCI_DEVICES || PCIE_DEVICES
-+    depends on PCI_EXPRESS && MSI_NONBROKEN
-+
 +config PCIE_CRYPTOSTORE
 +    bool
 +    default y if PCI_DEVICES || PCIE_DEVICES
@@ -23,10 +18,9 @@ diff --git a/hw/misc/meson.build b/hw/misc/meson.build
 index 23265f6..d552021 100644
 --- a/hw/misc/meson.build
 +++ b/hw/misc/meson.build
-@@ -1,5 +1,9 @@
+@@ -1,5 +1,8 @@
  system_ss.add(when: 'CONFIG_APPLESMC', if_true: files('applesmc.c'))
  system_ss.add(when: 'CONFIG_EDU', if_true: files('edu.c'))
-+system_ss.add(when: 'CONFIG_PCIE_HELLO', if_true: files('pcie_hello.c'))
 +system_ss.add(when: 'CONFIG_PCIE_CRYPTOSTORE', if_true: files(
 +  'cryptostore.c', 'cryptostore_crypto.c', 'cryptostore_format.c', 'cryptostore_fi.c',
 +  'cryptorecovery.c'))
@@ -37,20 +31,10 @@ diff --git a/hw/misc/trace-events b/hw/misc/trace-events
 index c9a868b..92f0c0f 100644
 --- a/hw/misc/trace-events
 +++ b/hw/misc/trace-events
-@@ -442,3 +442,31 @@ iommu_testdev_dma_read(uint64_t gva, uint32_t len) "gva=0x%" PRIx64 " len=%u"
+@@ -442,3 +442,19 @@ iommu_testdev_dma_read(uint64_t gva, uint32_t len) "gva=0x%" PRIx64 " len=%u"
  iommu_testdev_dma_verify(uint32_t expected, uint32_t actual) "expected=0x%x actual=0x%x"
  iommu_testdev_dma_result(uint32_t result) "DMA completed result=0x%x"
  iommu_testdev_dma_armed(bool armed) "armed=%d"
-+
-+# pcie_hello.c
-+pcie_hello_mmio_read(const char *dev, uint64_t addr, const char *reg, uint64_t val) "%s: read  0x%03" PRIx64 " %s -> 0x%" PRIx64
-+pcie_hello_mmio_write(const char *dev, uint64_t addr, const char *reg, uint64_t val) "%s: write 0x%03" PRIx64 " %s <- 0x%" PRIx64
-+pcie_hello_buf_read(const char *dev, uint64_t off, unsigned size, uint64_t val) "%s: read  BUF[0x%" PRIx64 "] size %u -> 0x%" PRIx64
-+pcie_hello_buf_write(const char *dev, uint64_t off, unsigned size, uint64_t val) "%s: write BUF[0x%" PRIx64 "] size %u <- 0x%" PRIx64
-+pcie_hello_cmd_start(const char *dev, uint32_t cmd, uint32_t latency_ms) "%s: command 0x%x started, completes in %u ms"
-+pcie_hello_cmd_done(const char *dev, uint32_t cmd, bool ok, uint32_t buf_len) "%s: command 0x%x done ok=%d buf_len=%u"
-+pcie_hello_irq(const char *dev, const char *how, uint32_t int_status, uint32_t int_enable) "%s: irq %s int_status 0x%x int_enable 0x%x"
-+pcie_hello_reset(const char *dev, const char *kind) "%s: %s, all device state cleared"
 +
 +# cryptostore.c
 +cryptostore_mmio_read(const char *dev, uint64_t addr, const char *reg, uint64_t val) "%s: read  0x%03" PRIx64 " %s -> 0x%" PRIx64

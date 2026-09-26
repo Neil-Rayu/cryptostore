@@ -1,9 +1,4 @@
-# Reference: `secure_jitter` (ECE397-MP2, Pattern 10)
-
-Source: ECE397-MP2, Neil Rayu, February 2026. Converted from the original LaTeX
-without changes to the code or the analysis. This is the reference for the
-jitter + redundancy pattern that `docs/threat-model.md` Section 10 ports to C
-for the device model (SR-23).
+# Reference: `secure_jitter` (ECTF Comp)
 
 **Pattern 10:** Randomized delay including FI detection to panic.
 

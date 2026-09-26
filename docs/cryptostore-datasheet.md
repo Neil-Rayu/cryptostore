@@ -1,6 +1,7 @@
 # pcie-cryptostore: datasheet and backing-file format (v1)
 
-Status: **draft for review**, 2026-09-26. Nothing in this document is implemented yet.
+Status: **draft specification**, 2026-09-26. The register and image-format details document the
+CryptoStore design; the review items below identify decisions that still need confirmation.
 Requirements (SR-xx), vectors (V-xx, F-x) and surfaces (S-xx) refer to
 [threat-model.md](threat-model.md). This document is the 12.1 "before coding" deliverable:
 register map, command × state matrix (SR-31), backing-file format with its validation
@@ -38,7 +39,7 @@ The first two change the design; the rest confirm details I had to pin down.
 | Capabilities | PM, MSI (1 vector), PCIe v2 Endpoint with FLR, MSI-X (1 vector) | PM, PCIe v2 Endpoint with FLR |
 | Migration | unmigratable vmsd (SR-12) | unmigratable vmsd (SR-12) |
 
-Both IDs sit in `1af4:10f0`–`10ff`, the range QEMU documents for experimental use (`pcie-hello` is `10f0`). The PCIe layout (capability offsets, FLR, interrupt fallback) is the one proven in `pcie-hello`.
+The IDs use QEMU's experimental device-ID range. CryptoStore uses standard PCIe endpoint capabilities and QEMU's PCI core for configuration space, FLR, and interrupt delivery.
 
 QEMU command line (the backing images live in `~/cryptostore-images/`, never in the 9p share, SR-30):
 
@@ -98,7 +99,7 @@ All registers are 32-bit and little-endian, and must be accessed with aligned 32
 | 0x068 | INT_ACK | WO | – | Write 1 to clear INT_STATUS bits |
 | 0x080–0x08C | UUID0..3 | RO | from image | Image UUID (public); 0 when UNFORMATTED |
 
-Writes to LBA, COUNT, PW_LEN and PW2_LEN while BUSY are ignored and logged. Unmapped offsets read 0 and are logged. Interrupts work exactly as in `pcie-hello`: MSI-X vector 0, else MSI, else INTx as a level; MSI and MSI-X are edge-triggered on a newly pending and enabled cause.
+Writes to LBA, COUNT, PW_LEN and PW2_LEN while BUSY are ignored and logged. Unmapped offsets read 0 and are logged. The device uses MSI-X vector 0 when available, then MSI, then level-triggered INTx. MSI and MSI-X are raised when an enabled cause becomes pending.
 
 ### 3.2 Password windows (write-only)
 
@@ -413,14 +414,14 @@ Layers: **Q** qtest (no guest), **U** unit test inside the QEMU build, **F** off
 | --- | --- |
 | S1 BAR0 registers and windows | SR-01, 04, 05, 09, 10, 21, 22, 35 |
 | S2 DMA | Not present in v1; SR-11 applies from the DMA milestone |
-| S3 Config space | QEMU PCI core; the device adds only standard capabilities (as in `pcie-hello`). Covered by a generic-fuzz run in M3 |
+| S3 Config space | QEMU PCI core; the device adds standard PCI capabilities. Covered by a generic-fuzz run in M3 |
 | S4 Timing | SR-05 |
 | S5 Backing file contents | SR-03, 06, 07, 08, 17, 36, 41 |
 | S6 Header parser | SR-16, 41 |
 | S7 Command line | Out of scope (O2); no secrets on the command line by design (FORMAT is in-guest) |
 | S8 Reset / FLR | SR-02, 33, 40 |
 | S9 Snapshot / migration | SR-12 |
-| S10 Hot-unplug / unbind | SR-02 (unrealize zeroizes); driver lifetime model from `pcie-hello` (refcounted device, `removed` flag) |
+| S10 Hot-unplug / unbind | SR-02 (unrealize zeroizes); CryptoStore driver uses a refcounted device structure and a `removed` flag |
 | S11 Control node / ioctl | SR-14, 19 |
 | S12 Block node | SR-19 |
 | S13 CLI | SR-13 |

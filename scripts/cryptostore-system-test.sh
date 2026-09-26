@@ -42,7 +42,7 @@ truncate -s 4096 "$IMGDIR/rec0.img"
 rm -f "$ROOT/build/vm/qemu.log"
 
 step "Boot (1 cryptostore + recovery, traces on)"
-NUM_DEVICES=0 NUM_CRYPTOSTORE=1 RECOVERY=1 CS_IMAGES="$IMGDIR" HEADLESS=1 \
+NUM_CRYPTOSTORE=1 RECOVERY=1 CS_IMAGES="$IMGDIR" HEADLESS=1 \
     "$ROOT/scripts/run-vm.sh" > "$ROOT/build/vm/run.log" 2>&1 &
 for _ in $(seq 1 60); do g -o ConnectTimeout=2 true 2>/dev/null && break; sleep 2; done
 check "guest reachable over SSH" g true
